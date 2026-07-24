@@ -251,6 +251,7 @@ Reply `YES` to authorize the remediation.
 The agent scales `DB_POOL_SIZE` to 50, restarts `buggy_service` via Docker socket, waits 15 seconds, and posts a recovery proof card.
 
 ![Self-Healing Proof](./assets/Self-Healing%20%26%20Proof.png)
+![SigNoz Recovery Curve](./assets/Recovery.png)
 
 ---
 

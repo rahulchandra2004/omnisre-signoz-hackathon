@@ -363,6 +363,8 @@ def apply_remediation_and_restart(service_name: str, key: str, value: str):
 | **HTTP 200 Rate** | < 60% | **100%** |
 | **MTTR** | N/A (no human awake) | **< 40 seconds** |
 
+![SigNoz Recovery Curve](https://raw.githubusercontent.com/rahulchandra2004/omnisre-signoz-hackathon/main/assets/Recovery.png)
+
 ---
 
 ## 3 Things I Learned That Nobody Tells You
