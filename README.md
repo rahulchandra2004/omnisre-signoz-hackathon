@@ -2,6 +2,8 @@
 
 ![OmniSRE Banner](./assets/title.png)
 
+**Watch the 3-Minute Live Demo on YouTube:** [Click Here to Watch](https://youtu.be/GMaUc4ksh6A)
+
 **Track 01: AI & Agent Observability | Agents of SigNoz Hackathon**
 
 OmniSRE is a deterministic, autonomous Site Reliability Engineering (SRE) agent designed to transform passive telemetry into active infrastructure remediation. By ingesting OpenTelemetry traces from self-hosted SigNoz, dynamically extracting ClickHouse logs via backend APIs, and executing structured inference through Google Gemini (`gemini-1.5-flash`), OmniSRE detects anomalies, isolates root causes, and executes zero-downtime container recoveries via Docker host socket bindings—guarded by a strict Telegram Human-in-the-Loop (HITL) authorization protocol.
@@ -37,7 +39,63 @@ OmniSRE bridges this gap by decoupling monitoring from execution while establish
 
 The system relies on a multi-container network topology where telemetry flows upstream into SigNoz storage, while remediation actions flow downstream via host-level socket bindings.
 
-![OmniSRE Architecture Blueprint](./assets/The%20Blueprint.png)
+```mermaid
+graph TD
+    subgraph AppLayer [" Target Application Container (buggy_service)"]
+        A["FastAPI App: buggy_service<br/>Port 8000 - /checkout"] -->|1. Auto-Instrumented Traces and 500 Errors| B["OpenTelemetry SDK<br/>FastAPIInstrumentor"]
+    end
+
+    subgraph Observability [" Self-Hosted SigNoz Observability Stack"]
+        B -->|host.docker.internal:4317| C["OTel Collector - OTLP Exporter"]
+        C --> D[(ClickHouse Database)]
+        D --> E["SigNoz Query Engine<br/>Port 3301"]
+    end
+
+    subgraph AgentContainer [" Autonomous SRE Container: omnisre_agent (Port 8001)"]
+        E -->|2. Webhook Alert Trigger| F["FastAPI Webhook Receiver<br/>/webhook/signoz"]
+        
+        subgraph Classes ["Core Python SRE Modules"]
+            F -->|3. Trigger process_alert| G["Investigator Class"]
+            G -->|4. Call fetch_real_signoz_logs| E
+            G -->|5. Send Trace and Error Context| H["LiteLLM Engine"]
+            I["Notifier Class"]
+            J["Healer Class"]
+        end
+    end
+
+    subgraph ExternalAI [" External AI Reasoning Engine"]
+        H -->|6. Prompt via LiteLLM| K["Google Gemini AI<br/>gemini-1.5-flash"]
+        K -->|7. Return Diagnosis and Action| G
+    end
+
+    subgraph HumanLoop [" Human-in-the-Loop Guardrail (Telegram API)"]
+        G -->|8. Pass Diagnosis| I
+        I -->|9. Call send_telegram_alert| L["Telegram Bot Chat"]
+        L -->|10. Polling wait_for_approval| I
+    end
+
+    subgraph SelfHealing [" Verified Self-Healing and ROI Pipeline"]
+        I -->|11. Authorize Remediation| J
+        J -->|12. Call tune_configuration| M["Update DB_POOL_SIZE=50<br/>in .env / Compose"]
+        J -->|13. docker.from_env via socket| N["/var/run/docker.sock"]
+        N -->|14. Call restart_target_service| A
+        I -->|15. 15s Cooldown and Live Ping| A
+        I -->|16. Send Recovery Alert Card| L
+    end
+
+    classDef primary fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff;
+    classDef ai fill:#3b0764,stroke:#a855f7,stroke-width:2px,color:#fff;
+    classDef telegram fill:#065f46,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef docker fill:#7f1d1d,stroke:#ef4444,stroke-width:2px,color:#fff;
+    classDef signoz fill:#1e3a8a,stroke:#60a5fa,stroke-width:2px,color:#fff;
+
+    class A,B primary;
+    class C,D,E signoz;
+    class F,G,H,I,J primary;
+    class K ai;
+    class L telegram;
+    class M,N docker;
+```
 
 ### Component Responsibility Matrix
 
