@@ -12,114 +12,253 @@ I realized something: If Large Language Models are smart enough to write code, s
 
 I built OmniSRE for the Agents of SigNoz Hackathon to answer exactly that. But as I gave my AI agent the keys to my Docker socket, I quickly realized that letting an autonomous agent mutate infrastructure is terrifying. I needed a fail-safe.
 
-In this blog, I’ll show you how I built an autonomous, closed-loop Site Reliability Engineering (SRE) agent using self-hosted SigNoz, OpenTelemetry, and Google Gemini—and the crucial Telegram "Human-in-the-Loop" architecture that keeps it from accidentally destroying my infrastructure.
+In this blog, I’ll show you how I deployed self-hosted SigNoz, wired up OpenTelemetry, and built an autonomous SRE agent powered by Google Gemini—along with the exact code and Telegram "Human-in-the-Loop" architecture that keeps it safe.
 
 {% youtube GMaUc4ksh6A %}
 *(Alternatively, [Click Here to Watch the 3-Minute Demo](https://youtu.be/GMaUc4ksh6A))*
 
 ---
 
-## The Architecture: A Closed-Loop Pipeline
+## 1. Deploying the Observability Stack with Foundry
 
-I wanted OmniSRE to run entirely isolated from the target application. If the application crashes, the agent needs to stay alive to fix it. The system relies on a multi-container network topology where telemetry flows upstream into SigNoz storage, while remediation actions flow downstream via host-level socket bindings.
+I wanted my entire observability environment to be completely reproducible. Instead of manually setting up ClickHouse and OpenTelemetry Collector instances, I used SigNoz Foundry CLI to spin up the entire self-hosted stack in under 2 minutes.
 
-![Architecture Blueprint](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/c71hs0s06t6bvqgnwdof.png)
+First, create the deployment configuration file:
 
-### Component Breakdown
+```yaml
+# casting.yaml - SigNoz Foundry Deployment Specification
+apiVersion: v1alpha1
+kind: Installation
+metadata:
+  name: signoz
+spec:
+  deployment:
+    mode: docker
+    flavor: compose
+  mcp:
+    spec:
+      enabled: true
+```
 
-* **buggy_service (FastAPI):** The monitored target application. It emits OTLP HTTP traces to SigNoz. I built normal endpoints (`/checkout`) and a chaos injection endpoint (`/chaos/inject`) to simulate a database pool exhaustion.
-* **SigNoz Stack:** Ingests telemetry, indexes spans in ClickHouse, computes rolling metric aggregations, and dispatches webhook alerts on threshold breaches.
-* **omnisre_agent:** The autonomous runtime. It processes webhooks, queries SigNoz backend APIs, invokes Google Gemini via LiteLLM, polls Telegram for authorization, and triggers container healing.
-* **Docker Socket (`/var/run/docker.sock`):** The host daemon interface mounted into the SRE agent, authorizing programmatic container restarts.
+Then trigger the stack with a single command:
+
+```bash
+# Install Foundry and cast the infrastructure stack
+curl -fsSL https://signoz.io/foundry.sh | bash
+export PATH="$HOME/.local/bin:$PATH"
+
+foundryctl cast -f casting.yaml
+```
+
+Within moments, six isolated core containers are live on ports 3301 (SigNoz UI) and 4317/4318 (OTLP gRPC/HTTP ingestion).
 
 ---
 
-## Setting the Trap: Auto-Instrumentation & Chaos
+## 2. System Architecture & Docker Topology
 
-To test the AI, I needed granular data. OmniSRE prioritizes deterministic tracing. By using OpenTelemetry SDKs natively, individual spans across the `/checkout` endpoint are recorded inside ClickHouse for auditability.
+OmniSRE relies on a multi-container network topology where telemetry flows upstream into SigNoz storage, while remediation actions flow downstream via host-level socket bindings.
+
+![Architecture Blueprint](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/c71hs0s06t6bvqgnwdof.png)
+
+To ensure that the SRE Agent (`omnisre_agent`) remains functional even when the target app crashes, it runs as an independent container with direct host daemon access.
+
+Here is the trimmed `docker-compose.yml` snippet showing the socket mount and port mapping:
+
+```yaml
+# config/docker-compose.yml
+version: '3.8'
+
+services:
+  # Monitored Target Application
+  buggy_service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.buggy
+    container_name: buggy_service
+    ports:
+      - "8000:8000"
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318
+      - DB_POOL_SIZE=10
+
+  # Autonomous SRE Agent Runtime
+  omnisre_agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.agent
+    container_name: omnisre_agent
+    ports:
+      - "8001:8001"
+    volumes:
+      # CRITICAL: Host socket mounted for zero-downtime container healing
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../.env:/app/.env
+    environment:
+      - SIGNOZ_ENDPOINT=http://host.docker.internal:3301
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+```
+
+---
+
+## 3. Auto-Instrumentation & Chaos Injection
+
+To test the AI, I built a `/checkout` endpoint in FastAPI and instrumented it with OpenTelemetry SDKs. When chaos mode is toggled, it injects explicit `StatusCode.ERROR` attributes directly into ClickHouse span tags.
 
 ```python
-# Instrumentation snippet inside buggy_service.py
+# app/buggy_service.py
+from fastapi import FastAPI, HTTPException
+from opentelemetry import trace
+from opentelemetry.trace import StatusCode
+
+app = FastAPI(title="Buggy E-Commerce Checkout")
+chaos_mode_enabled = False
+
 @app.get("/checkout")
 def checkout():
     global chaos_mode_enabled
     if chaos_mode_enabled:
         current_span = trace.get_current_span()
         if current_span.is_recording():
-            current_span.set_status(StatusCode.ERROR, "Chaos mode active: Simulated 500 Outage")
+            # Inject explicit exception status for SigNoz indexing
+            current_span.set_status(StatusCode.ERROR, "Chaos mode active: Database Pool Exhausted")
             current_span.set_attribute("http.status_code", 500)
-            current_span.set_attribute("http.response.status_code", 500)
             
-        raise HTTPException(status_code=500, detail="Internal Server Error during checkout.")
+        raise HTTPException(status_code=500, detail="500 Internal Server Error: Connection pool exhausted.")
+    return {"status": "success", "latency_ms": 25}
+
+@app.post("/chaos/inject")
+def inject_chaos():
+    global chaos_mode_enabled
+    chaos_mode_enabled = True
+    return {"status": "chaos_injected", "message": "Simulated DB pool failure active."}
 ```
 
-When I hit the `/chaos/inject` endpoint, error rates rise above 40%, and the SigNoz Dashboard lights up.
+Triggering chaos causes latency to spike to 3,420 ms and error rates to exceed 40%, instantly firing an alert in SigNoz.
 
 ![Live Anomaly Outage Spike](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/7ggx0gj1yhipc9se3y8h.png)
 
 ---
 
-## The Hurdle: The Ghost in the Container Bridge
+## 4. The Network Hurdle: Multi-Bridge Fallback Engine
 
-Everything worked perfectly in my local Python environment. But when I containerized the SRE Agent, my observability pipeline suddenly went entirely blind. The agent was receiving the alert webhook from SigNoz, but when it tried to query the ClickHouse logs to feed the AI, it crashed.
+When containerizing `omnisre_agent`, it received alert webhooks from SigNoz, but failed when trying to pull ClickHouse logs: `Connection Refused: localhost:3301`.
 
-**The Moment:** I spent hours assuming my ClickHouse query syntax was wrong, or that the LLM context window was blowing up. I checked the agent logs: `Connection Refused: localhost:3301`.
+Because `localhost` inside a Docker container points to itself rather than the host, I built a resilient fallback engine inside `investigator.py` to auto-resolve network bridges:
 
-**The Fix:** Container networking strikes again. SigNoz was running on my host machine's port 3301, but inside the isolated `omnisre_agent` Docker container, `localhost` referred to the container itself, not the host!
+```python
+# agent/investigator.py
+import requests
 
-To fix this resiliently, I programmed the agent to automatically cycle through fallback network interfaces. If `localhost:3301` fails, it tries `host.docker.internal:3301`, and finally `signoz-frontend:3301`. Within seconds, the agent was successfully pulling 15-minute sliding windows of error logs natively from ClickHouse.
+class SigNozInvestigator:
+    # Priority fallback matrix for cross-container bridge resolution
+    FALLBACK_ENDPOINTS = [
+        "http://localhost:3301",
+        "http://host.docker.internal:3301",
+        "http://signoz-frontend:3301"
+    ]
+
+    def fetch_real_signoz_logs(self, query_payload: dict) -> dict:
+        for base_url in self.FALLBACK_ENDPOINTS:
+            try:
+                url = f"{base_url}/api/v1/query_range"
+                response = requests.post(url, json=query_payload, timeout=3)
+                if response.status_code == 200:
+                    return response.json()
+            except requests.exceptions.ConnectionError:
+                continue
+        raise ConnectionError("Failed to reach SigNoz ClickHouse backend across all bridges.")
+```
 
 ---
 
-## The Killer Feature: Telegram Human-in-the-Loop (HITL)
+## 5. The Killer Feature: Telegram HITL & Docker Healing
 
-Having an AI that can diagnose a problem is amazing. Having an AI that can unilaterally modify `.env` files and execute container restarts is a recipe for a career-ending disaster.
+Having an AI that can diagnose a problem is amazing. Having an AI that can unilaterally modify production files and execute container restarts is terrifying.
 
-I needed a "Financial Kill Switch" for my infrastructure.
+OmniSRE introduces a Human-in-the-Loop (HITL) authorization gate via Telegram. When SigNoz alerts fire, the agent queries ClickHouse logs, sends the trace context to Google Gemini (`gemini-1.5-flash`), formats the diagnosis, and halts execution until human approval is received.
 
-When SigNoz detects the P99 latency spike, it fires a webhook to the SRE Agent. The agent extracts the ClickHouse logs and passes them to Google Gemini (`gemini-1.5-flash`). But before it touches the Docker socket, it halts execution and fires a diagnostic card to my Telegram.
+To prevent the bot from reading old `YES` approvals from past incidents, I implemented timestamp-filtered polling:
+
+```python
+# agent/notifier.py
+import time, requests
+
+def wait_for_human_approval(bot_token: str, chat_id: str, alert_start_time: float) -> bool:
+    """Polls Telegram updates and filters messages against alert trigger timestamp."""
+    timeout = 120  # 2 minute window
+    start_poll = time.time()
+    
+    while time.time() - start_poll < timeout:
+        updates = requests.get(f"https://api.telegram.org/bot{bot_token}/getUpdates").json()
+        for result in updates.get("result", []):
+            msg = result.get("message", {})
+            msg_date = msg.get("date", 0)
+            text = msg.get("text", "").strip().upper()
+            
+            # STRICT GUARDRAIL: Ignore messages sent before the alert started
+            if msg_date >= (alert_start_time - 5) and text == "YES":
+                return True
+        time.sleep(3)
+    return False
+```
 
 ![Telegram Diagnosis Approval](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/xew23r8qr7metoon4zji.png)
 
-The Telegram bot acts as an authorization gate. It tells me:
-1. What the alert is.
-2. The root cause identified by Gemini.
-3. The proposed remediation step (e.g., Scale `DB_POOL_SIZE` to 50 and restart container).
+Once the user replies `YES`, the agent invokes `healer.py`, which programmatically updates `.env` configuration files and triggers a container restart directly via `/var/run/docker.sock`:
 
-It polls my chat waiting for a simple `YES`.
+```python
+# agent/healer.py
+import docker
 
-Once authorized, the agent programmatically mutates the `.env` configuration, restarts the container via native Docker socket bindings, implements a 15-second cooldown, and verifies the recovery.
+def apply_remediation_and_restart(service_name: str, key: str, value: str):
+    # 1. Mutate configuration state
+    with open(".env", "r") as f:
+        lines = f.readlines()
+    with open(".env", "w") as f:
+        for line in lines:
+            if line.startswith(f"{key}="):
+                f.write(f"{key}={value}\n")
+            else:
+                f.write(line)
+
+    # 2. Programmatic Docker Daemon Socket Execution
+    client = docker.from_env()
+    container = client.containers.get(service_name)
+    container.restart()
+    return True
+```
 
 ![Telegram Remediation Proof](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/491u6vkvvtr9u822a07x.png)
 
-Latency drops back to 840ms, the HTTP 200 curve recovers, and MTTR (Mean Time To Recovery) clocks in under 40 seconds.
+Latency drops back to 840 ms, HTTP 200 responses recover, and the Mean Time To Recovery (MTTR) is clocked under 40 seconds.
 
 ---
 
-## What I Learned From This Project
+## Key Takeaways
 
-* **Deterministic Context is Everything:** LLMs hallucinate when they lack context. By programmatically tagging OpenTelemetry spans (`StatusCode.ERROR`), I ensured Gemini had strict, factual trace data to reason about, practically eliminating hallucinations.
-* **Timestamp Your Guardrails:** During testing, the agent kept auto-restarting my containers immediately. Why? The polling engine was reading stale, historical `YES` messages from my Telegram chat. Adding a timestamp filter (`msg_date >= start_time - 5`) saved my sanity.
-* **Observability is the missing link for AI Agents:** If you cannot observe your system, an AI cannot fix it. SigNoz bridging the gap between raw telemetry and programmatic extraction made this entire autonomous loop possible.
+* **Deterministic Context Eliminates Hallucinations:** By programmatically tagging OpenTelemetry spans (`StatusCode.ERROR`), Gemini receives pure, factual trace data, completely avoiding hallucinated root causes.
+* **Timestamp Your Human-in-the-Loop Bot:** Always filter approval messages against event start times (`msg_date >= alert_start_time`), or your agent will process stale approval commands!
+* **Observability is Essential for AI Agents:** Raw telemetry and open standards like OpenTelemetry are what allow AI agents to move from passive chatbots to active infrastructure software.
 
 ---
 
 ## Future Scope
 
-* **Kubernetes Operator Native Architecture:** Moving from Docker socket binding to Kubernetes controllers for managing custom resources definitions (CRDs) and `kubectl scale` operations.
-* **Multi-Agent Collaboration:** Distributing tasks between different LLMs that specialize in certain areas, such as Database Query Optimization vs. Network Routing.
+* **Kubernetes Operator Native Architecture:** Transitioning from Docker socket bindings to Kubernetes Custom Resource Definitions (CRDs) and `kubectl scale` deployments.
+* **Multi-Agent Networks:** Delegating tasks across independent LLMs (e.g., Query Optimization Agent vs. Network Routing Agent).
 
 ---
 
 ## AI Usage Disclosure
 
-In accordance with hackathon transparency rules, Gemini and GitHub Copilot were used during development to refactor code and design layouts. At runtime, `gemini-1.5-flash` is natively integrated via LiteLLM for log triage and root-cause analysis.
+In compliance with hackathon rules, Gemini and GitHub Copilot were used during development to refactor code and format layouts. At runtime, `gemini-1.5-flash` is natively integrated via LiteLLM to perform log analysis and root-cause diagnosis.
 
 ---
 
-If you want to poke around the code and try injecting chaos into the agent yourself, check out the full repository here:  
-**[OmniSRE on GitHub](https://github.com/rahulchandra2004/omnisre-signoz-hackathon)**
+Check out the full source code and deploy it yourself:  
+👉 **[OmniSRE GitHub Repository](https://github.com/rahulchandra2004/omnisre-signoz-hackathon)**
 
-Have you ever tried building autonomous remediation tools? Let me know in the comments—I’d love to hear how you tackle the Human-in-the-Loop problem!
+Have you ever tried building autonomous remediation tools? Let me know in the comments below!
 
 *Built by Rahul Chandra Padamuttam for the Agents of SigNoz Hackathon.*
