@@ -1,39 +1,15 @@
 #!/bin/bash
-# foundry.sh - Downloads, verifies, and installs the foundryctl binary
-# from GitHub releases.
-#
-# Usage:
-#   curl -fsSL https://signoz.io/foundry.sh | bash
-#   curl -fsSL https://signoz.io/foundry.sh | FOUNDRY_VERSION=v0.1.4 bash
-#   bash foundry.sh -v v0.1.4
-#   bash foundry.sh -d /usr/local/bin
-#   bash foundry.sh -h
-#
-# OPTIONS:
-#   -v <version>   Version to install (e.g. v0.1.4). Default: latest.
-#   -d <path>      Install directory. Default: $XDG_BIN_HOME or ~/.local/bin.
-#   -y             Auto-confirm upgrade prompt.
-#   -h             Show help message.
-#
-# Environment:
-#   FOUNDRY_VERSION       Equivalent to -v.
-#   FOUNDRY_INSTALL_DIR   Equivalent to -d.
-#   FOUNDRY_ASSUME_YES    Equivalent to -y. Set to "true" to enable.
-#   NO_COLOR              When set, disables ANSI color output (https://no-color.org).
 
 set -euo pipefail
 
-# Constants.
 readonly NAME="foundry.sh"
 readonly REPO="SigNoz/foundry"
 readonly BINARY="foundryctl"
 
-# User input (env vars; flags overwrite these in the getopts loop below).
 FOUNDRY_VERSION="${FOUNDRY_VERSION:-}"
 FOUNDRY_INSTALL_DIR="${FOUNDRY_INSTALL_DIR:-}"
 FOUNDRY_ASSUME_YES="${FOUNDRY_ASSUME_YES:-false}"
 
-# https://no-color.org honoured; auto-stripped when stderr is not a TTY.
 if [[ -t 2 ]] && [[ -z "${NO_COLOR:-}" ]]; then
   readonly C_INFO=$'\033[32;1m'
   readonly C_WARN=$'\033[33;1m'
@@ -82,7 +58,6 @@ help() {
   printf "\tcurl -fsSL https://signoz.io/foundry.sh | FOUNDRY_VERSION=v0.1.4 bash\n"
 }
 
-# Sets PLATFORM_* (OS, ARCH, BIN_SUFFIX); Windows shells map to OS=windows and .exe suffix.
 init_platform() {
   local raw_arch raw_os
   raw_arch="$(uname -m)"
@@ -104,7 +79,6 @@ init_platform() {
   esac
 }
 
-# Sets HAS_CURL/HAS_WGET and SHA256_CMD for downstream reuse.
 verify_prereqs() {
   HAS_CURL="$(command -v curl >/dev/null 2>&1 && echo true || echo false)"
   HAS_WGET="$(command -v wget >/dev/null 2>&1 && echo true || echo false)"
@@ -126,9 +100,6 @@ verify_prereqs() {
   fi
 }
 
-# fetch downloads URL to OUT using whichever of curl/wget is available.
-# Pass "progress" as the third arg to render a transfer progress bar; the bar
-# is suppressed when stderr is not a TTY (e.g. CI, piped output).
 fetch() {
   local url="$1"
   local out="$2"
@@ -148,7 +119,6 @@ fetch() {
   fi
 }
 
-# fetch_effective_url follows redirects on URL and prints the final location.
 fetch_effective_url() {
   local url="$1"
   if [[ "${HAS_CURL}" == "true" ]]; then
@@ -159,7 +129,6 @@ fetch_effective_url() {
   fi
 }
 
-# Sets TAG from FOUNDRY_VERSION or /releases/latest redirect; validates semver shape.
 resolve_version() {
   if [[ -n "${FOUNDRY_VERSION}" ]]; then
     case "${FOUNDRY_VERSION}" in
@@ -197,8 +166,6 @@ resolve_install_dir() {
   DEST="${INSTALL_DIR}/${BINARY}${PLATFORM_BIN_SUFFIX}"
 }
 
-# Same version: skip and exit 0. Different version: prompt if interactive,
-# auto-proceed if piped (curl-pipe-bash, CI).
 check_existing() {
   if [[ ! -f "${DEST}" ]]; then
     return
@@ -224,7 +191,6 @@ check_existing() {
   esac
 }
 
-# Sets TARBALL, CHECKSUMS, TARBALL_URL, CHECKSUMS_URL from PLATFORM_* and TAG.
 compute_release_artifacts() {
   TARBALL="foundry_${PLATFORM_OS}_${PLATFORM_ARCH}.tar.gz"
   CHECKSUMS="foundry_${TAG#v}_checksums.txt"
@@ -232,7 +198,6 @@ compute_release_artifacts() {
   CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${TAG}/${CHECKSUMS}"
 }
 
-# Creates TMP_ROOT and fetches the tarball and checksums into it.
 download_release() {
   TMP_ROOT="$(mktemp -d -t foundry-installer-XXXXXX)"
   TARBALL_PATH="${TMP_ROOT}/${TARBALL}"
@@ -243,7 +208,6 @@ download_release() {
   fetch "${CHECKSUMS_URL}" "${CHECKSUMS_PATH}"
 }
 
-# Checksums file lists "<sha256>  <filename>" or "<sha256> *<filename>".
 verify_checksum() {
   local expected
   expected="$(awk -v f="${TARBALL}" '$2 == f || $2 == "*"f {print $1; exit}' "${CHECKSUMS_PATH}")"
@@ -275,7 +239,6 @@ install_binary() {
   info "Installed ${BINARY}${PLATFORM_BIN_SUFFIX} ${TAG} to ${DEST}"
 }
 
-# Smoke test: catches arch/platform mismatches that slipped past checksum.
 verify_install() {
   local output
   if ! output="$("${DEST}" version 2>&1)"; then
@@ -294,7 +257,6 @@ print_path_hint() {
   esac
 
   local rc_file
-  # shellcheck disable=SC2088
   case "${SHELL:-}" in
     */zsh) rc_file='~/.zshrc' ;;
     */bash) rc_file='~/.bashrc (Linux) or ~/.bash_profile (macOS)' ;;
