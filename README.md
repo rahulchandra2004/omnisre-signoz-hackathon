@@ -152,11 +152,15 @@ sequenceDiagram
 │   └── requirements.txt
 ├── assets/                 # Screenshots and demo images
 ├── config/
+│   ├── .env.example        # Environment variable template
 │   └── docker-compose.yml  # Service topology with Docker socket binding
 ├── scripts/
 │   ├── generate_traffic.ps1  # PowerShell baseline traffic generator
 │   └── trigger_chaos.ps1     # One-click chaos injection script
+├── .env.example            # Root environment variable template
+├── blog_post.md            # Hackathon technical blog post submission
 ├── casting.yaml            # SigNoz Foundry deployment manifest
+├── LICENSE                 # MIT License
 ├── run_demo_gui.py         # Tkinter GUI for live hackathon demonstration
 └── README.md
 ```
