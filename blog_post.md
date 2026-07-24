@@ -8,27 +8,24 @@ cover_image: https://raw.githubusercontent.com/rahulchandra2004/omnisre-signoz-h
 
 **Track 01: AI & Agent Observability | WeMakeDevs x Agents of SigNoz Hackathon**
 
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi&logoColor=white)
-![SigNoz](https://img.shields.io/badge/SigNoz-Self--Hosted-F46800?logo=grafana&logoColor=white)
-![Google Gemini](https://img.shields.io/badge/Gemini-1.5--flash-4285F4?logo=google&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Socket--Bound-2496ED?logo=docker&logoColor=white)
-![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-OTLP-000000?logo=opentelemetry&logoColor=white)
-![Telegram](https://img.shields.io/badge/Telegram-HITL-26A5E4?logo=telegram&logoColor=white)
 
 ---
 
-It was 3:00 AM, and my hypothetical pager was going off.
+It was late at night, and I was watching my terminal with a mixture of excitement and genuine dread.
 
-If you've ever been on-call for a modern microservice architecture, you know the feeling. A database connection pool gets exhausted, tail latency spikes to 3,000ms, and HTTP 500 errors start raining down. Observability dashboards are great—they tell you exactly what is burning. But they still rely entirely on a bleary-eyed human to wake up, SSH into a server, read the logs, diagnose the root cause, and apply a fix.
+I had just injected simulated database chaos into my own service and handed an AI agent full, unchecked access to my Docker socket. The agent had 2 minutes to read the SigNoz traces, call Google Gemini, diagnose the root cause, and send an approval request to my Telegram before I would call it a failure.
 
-I realized something:
+No human was going to fix this. Either the agent worked, or the container stayed broken.
+
+That's when I understood the real problem with modern observability. SigNoz was already showing me everything: P99 latency spiking to 3,420ms, HTTP 500 errors flooding in above 40%. The dashboard was perfect. But a dashboard can only tell you what is on fire. It cannot put the fire out.
 
 > **If Large Language Models are smart enough to write code, shouldn't they be smart enough to read telemetry, find the root cause, and restart the container themselves?**
 
-I built **OmniSRE** for the Agents of SigNoz Hackathon to answer exactly that. But as I gave my AI agent the keys to my Docker socket, I quickly realized that letting an autonomous agent mutate infrastructure is terrifying. I needed a fail-safe.
+I built **OmniSRE** to answer exactly that question. But the moment I gave my AI agent the keys to my Docker socket, I realized that an autonomous agent with unchecked infrastructure access is genuinely terrifying. One bad LLM response, one stale approval message—and it starts restarting production containers on its own.
 
-In this blog, I'll walk you through the exact code—from deploying a self-hosted SigNoz observability stack, to wiring up OpenTelemetry, to building the Telegram "Human-in-the-Loop" kill switch that keeps the whole thing from going rogue.
+I needed a kill switch. So I built one into Telegram.
+
+In this post, I'll walk you through the exact code—from deploying a self-hosted SigNoz stack, to wiring OpenTelemetry traces into a Gemini-powered root-cause engine, to the timestamp-guarded Telegram gate that keeps the whole system from going rogue.
 
 {% youtube GMaUc4ksh6A %}
 *(Alternatively, [Click Here to Watch the 3-Minute Live Demo](https://youtu.be/GMaUc4ksh6A))*
@@ -101,7 +98,7 @@ Within moments, six isolated core containers are live:
 
 OmniSRE relies on a strict multi-container isolation model. Telemetry flows **upstream** into SigNoz. Remediation commands flow **downstream** via host-level socket bindings. The SRE Agent is completely decoupled from the application it monitors.
 
-![Architecture Blueprint](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/c71hs0s06t6bvqgnwdof.png)
+![Architecture Blueprint](https://raw.githubusercontent.com/rahulchandra2004/omnisre-signoz-hackathon/main/assets/The%20Blueprint.png)
 
 > **Key Design Principle:** If `buggy_service` crashes and burns, `omnisre_agent` stays alive to fix it. They share zero runtime dependencies.
 
@@ -180,15 +177,36 @@ One `curl -X POST http://localhost:8000/chaos/inject` later, the SigNoz Dashboar
 - HTTP 500 error rate climbs above **40%**
 - SigNoz Alert Manager fires a webhook to `omnisre_agent:8001`
 
-![Live Anomaly Outage Spike](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/7ggx0gj1yhipc9se3y8h.png)
+![Live Anomaly Outage Spike](https://raw.githubusercontent.com/rahulchandra2004/omnisre-signoz-hackathon/main/assets/The%20Outage%20%26%20Telemetry.png)
 
 Every chaos-mode `/checkout` request is fully indexed as a named error span in ClickHouse, giving the AI structured, auditable evidence to reason against.
 
-![OpenTelemetry Granular Traces](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/2g4nijcv6x9rkvoflfrt.png)
+![OpenTelemetry Granular Traces](https://raw.githubusercontent.com/rahulchandra2004/omnisre-signoz-hackathon/main/assets/Inspecting%20Spans.png)
 
 ---
 
-## 4. The Debugging Nightmare Nobody Talks About: Container Networking
+## 4. Wiring Up SigNoz: Alerts, Dashboards, and the Webhook
+
+This is where SigNoz becomes the central nervous system of OmniSRE. After traces start flowing in, I configured four things inside the SigNoz UI:
+
+**Metrics Panels (Query Builder):** Four custom panels on a single dashboard track the incident lifecycle in real time — a P99 latency time-series, an HTTP 500 rate panel using `signoz_calls_total` filtered by `status_code=500`, a pie chart showing the live 200/500 traffic health ratio, and a recovery curve showing 200 OK requests restoring after healing.
+
+**Alert Rule:** I created a threshold alert on P99 latency in the SigNoz Alerts UI. When `p99 > 2000ms` for 2 consecutive minutes, SigNoz fires:
+
+```
+Alert Name: High Checkout Latency
+Condition:  p99_duration_ms > 2000
+For:        2 minutes
+Labels:     severity=critical, service=buggy_service
+```
+
+**Webhook Channel:** In SigNoz → Settings → Alert Channels, I configured a Webhook notification channel pointing to `http://host.docker.internal:8001/webhook/signoz`. The moment the alert fires, SigNoz POSTs a JSON payload directly to the SRE agent's receiver endpoint — no polling, no cron jobs.
+
+> **This is the key integration point:** SigNoz is not just a dashboard in this system. It is the event source that kicks off the entire autonomous remediation pipeline. Without the alert channel, nothing moves.
+
+---
+
+## 5. The Debugging Nightmare Nobody Talks About: Container Networking
 
 This was the hardest part of the entire build, and I guarantee you will hit this wall too.
 
@@ -225,6 +243,8 @@ class SigNozInvestigator:
 ```
 
 The agent now auto-resolves the correct network bridge every single time. No manual configuration required.
+
+> **SigNoz features used in this project:** Distributed Tracing (Trace Explorer), ClickHouse Log Querying (`/api/v1/query_range`), Custom Metrics Dashboards (Query Builder), Threshold Alert Rules, and Webhook Alert Channels. Every feature worked together as an integrated pipeline, not as isolated tools.
 
 ---
 
@@ -307,7 +327,7 @@ def wait_for_human_approval(bot_token: str, chat_id: str, alert_start_time: floa
     return False
 ```
 
-![Telegram Diagnosis Approval](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/xew23r8qr7metoon4zji.png)
+![Telegram Diagnosis Approval](https://raw.githubusercontent.com/rahulchandra2004/omnisre-signoz-hackathon/main/assets/AI%20Reasoning%20%26%20Guardrail.png)
 
 Once authorized, `healer.py` programmatically mutates the `.env` config and restarts the container via the Docker socket:
 
@@ -330,7 +350,7 @@ def apply_remediation_and_restart(service_name: str, key: str, value: str):
     return True
 ```
 
-![Telegram Remediation Proof](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/491u6vkvvtr9u822a07x.png)
+![Telegram Remediation Proof](https://raw.githubusercontent.com/rahulchandra2004/omnisre-signoz-hackathon/main/assets/Self-Healing%20%26%20Proof.png)
 
 ---
 
@@ -355,6 +375,8 @@ During testing, the agent was auto-restarting my containers the instant it recei
 
 **3. Observability is the missing link that makes AI agents trustworthy.**
 Without SigNoz bridging raw OTLP traces into a queryable ClickHouse backend, the agent would have nothing factual to feed the LLM. Observability infrastructure is not optional for autonomous agents—it is the foundation they run on.
+
+**What I'd do differently:** If I rebuilt this today, I'd replace the Telegram polling loop with SigNoz's own webhook payload as the authorization token, creating a cryptographically verifiable approval chain instead of plain-text `YES` matching. I'd also expose a `/status` endpoint on the agent so SigNoz dashboards can display the current remediation state in real time, closing the visual feedback loop entirely inside the observability platform.
 
 ---
 
