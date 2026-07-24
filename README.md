@@ -153,7 +153,8 @@ sequenceDiagram
 ├── assets/                 # Screenshots and demo images
 ├── config/
 │   ├── .env.example        # Environment variable template
-│   └── docker-compose.yml  # Service topology with Docker socket binding
+│   ├── docker-compose.yml  # Service topology with Docker socket binding
+│   └── signoz_dashboard.json # 1-click SigNoz Control Room dashboard spec
 ├── scripts/
 │   ├── generate_traffic.ps1  # PowerShell baseline traffic generator
 │   └── trigger_chaos.ps1     # One-click chaos injection script
@@ -216,7 +217,12 @@ foundryctl cast -f casting.yaml
 
 SigNoz UI will be available at `http://localhost:3301` within ~3 minutes.
 
-### 4. Run the Demo
+### 4. Import the Control Room Dashboard
+1. Open `http://localhost:3301` in your browser.
+2. Go to **Dashboards** → **New Dashboard** → **Import JSON**.
+3. Upload `config/signoz_dashboard.json` to instantiate the 4-panel OmniSRE control room (P99 latency, 500 rate, traffic health pie chart, 200 OK recovery).
+
+### 5. Run the Demo
 ```bash
 # Generate baseline traffic
 cd scripts && .\generate_traffic.ps1
