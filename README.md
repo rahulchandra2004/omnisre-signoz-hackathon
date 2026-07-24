@@ -12,9 +12,7 @@
 ![Gemini](https://img.shields.io/badge/AI-gemini--1.5--flash-4285F4?style=for-the-badge&logo=google&logoColor=white)
 ![Docker](https://img.shields.io/badge/runtime-Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
-**Watch the 3-Minute Live Demo:**
-
-[![Watch the Live Demo on YouTube](./assets/title.png)](https://youtu.be/GMaUc4ksh6A)
+**Watch the 3-Minute Live Demo:** [Click Here to Watch on YouTube](https://youtu.be/GMaUc4ksh6A)
 
 ---
 
@@ -146,10 +144,11 @@ sequenceDiagram
 │   ├── investigator.py     # SigNoz log fetcher + Gemini RCA engine
 │   ├── notifier.py         # Telegram HITL dispatcher and approval poller
 │   ├── healer.py           # .env mutator + Docker socket restart executor
+│   ├── Dockerfile          # Agent container build definition
 │   └── requirements.txt
 ├── app/
 │   ├── buggy_service.py    # Monitored FastAPI app with chaos injection endpoints
-│   ├── Dockerfile
+│   ├── Dockerfile          # Target service container build definition
 │   └── requirements.txt
 ├── assets/                 # Screenshots and demo images
 ├── config/
@@ -291,7 +290,7 @@ Respond with ONLY raw JSON, with no markdown formatting or backticks.
 It must contain:
 - "root_cause": string, your hypothesis
 - "action": string, either "RESTART_SERVICE", "SCALE_UP", or "NO_ACTION"
-- "target_service": string, the name of the service to act on
+- "target_service": string, the name of the service to act on (e.g., "buggy_service")
 """
 ```
 
@@ -341,8 +340,9 @@ Every `/checkout` request in chaos mode is indexed as a named `StatusCode.ERROR`
 
 ```python
 # Explicit span tagging in buggy_service.py
-current_span.set_status(StatusCode.ERROR, "Chaos mode active: Database Pool Exhausted")
+current_span.set_status(StatusCode.ERROR, "Chaos mode active: Simulated 500 Outage")
 current_span.set_attribute("http.status_code", 500)
+current_span.set_attribute("http.response.status_code", 500)
 ```
 
 ---
