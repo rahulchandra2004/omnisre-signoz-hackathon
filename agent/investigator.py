@@ -28,9 +28,9 @@ class Investigator:
             }
             urls_to_try = [
                 f"{SIGNOZ_BASE_URL}/api/v1/query_range",
-                "http://signoz:8080/api/v1/query_range",               # Direct container-to-container DNS on signoz-network
-                "http://host.docker.internal:3301/api/v1/query_range",  # Route through host loopback bridge
-                "http://127.0.0.1:3301/api/v1/query_range"              # Localhost fallback
+                "http://signoz:8080/api/v1/query_range",            
+                "http://host.docker.internal:3301/api/v1/query_range",  
+                "http://127.0.0.1:3301/api/v1/query_range"       
             ]
             
             response = None
