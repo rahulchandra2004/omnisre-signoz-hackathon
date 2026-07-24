@@ -189,10 +189,10 @@ Create a `.env` file in the project root:
 
 | Variable | Required | Description | Example |
 | :--- | :--- | :--- | :--- |
-| `TELEGRAM_BOT_TOKEN` | ✅ | Token from [@BotFather](https://t.me/BotFather) | `123456:ABC-xyz...` |
-| `TELEGRAM_CHAT_ID` | ✅ | Your Telegram user or group ID | `987654321` |
-| `GEMINI_API_KEY` | ✅ | Google AI Studio key for Gemini inference | `AIzaSy...` |
-| `DB_POOL_SIZE` | ✅ | Initial connection pool size (agent scales this to 50) | `10` |
+| `TELEGRAM_BOT_TOKEN` | Yes | Token from [@BotFather](https://t.me/BotFather) | `123456:ABC-xyz...` |
+| `TELEGRAM_CHAT_ID` | Yes | Your Telegram user or group ID | `987654321` |
+| `GEMINI_API_KEY` | Yes | Google AI Studio key for Gemini inference | `AIzaSy...` |
+| `DB_POOL_SIZE` | Yes | Initial connection pool size (agent scales this to 50) | `10` |
 
 ```bash
 TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
