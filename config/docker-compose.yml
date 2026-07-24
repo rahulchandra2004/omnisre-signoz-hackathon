@@ -1,0 +1,40 @@
+
+services:
+  buggy_service:
+    build:
+      context: ../app
+      dockerfile: Dockerfile
+    container_name: buggy_service
+    ports:
+      - "8000:8000"
+    environment:
+      - OTEL_SERVICE_NAME=buggy_service
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4317
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=buggy_service,deployment.environment=production
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - signoz-network
+    restart: unless-stopped
+
+  omnisre_agent:
+    build:
+      context: ../agent
+      dockerfile: Dockerfile
+    container_name: omnisre_agent
+    ports:
+      - "8001:8001"
+    env_file:
+      - ../.env
+    networks:
+      - signoz-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../:/app_root
+    restart: unless-stopped
+
+networks:
+  signoz-network:
+    external: true
