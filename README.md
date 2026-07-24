@@ -6,7 +6,15 @@
 
 **Track 01: AI & Agent Observability | WeMakeDevs x Agents of SigNoz Hackathon**
 
-**Watch the 3-Minute Live Demo:** [youtube.com/watch?v=GMaUc4ksh6A](https://youtu.be/GMaUc4ksh6A)
+![License](https://img.shields.io/badge/license-MIT-22c55e?style=for-the-badge)
+![Python](https://img.shields.io/badge/python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![SigNoz](https://img.shields.io/badge/observability-SigNoz-F46800?style=for-the-badge)
+![Gemini](https://img.shields.io/badge/AI-gemini--1.5--flash-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![Docker](https://img.shields.io/badge/runtime-Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+
+**Watch the 3-Minute Live Demo:**
+
+[![Watch the Live Demo on YouTube](./assets/title.png)](https://youtu.be/GMaUc4ksh6A)
 
 ---
 
@@ -94,6 +102,39 @@ graph TD
     class M,N docker;
 ```
 
+### Incident Response Sequence (with Timing)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as SigNoz Alert Manager
+    participant W as omnisre_agent Webhook
+    participant I as Investigator (Gemini)
+    participant T as Telegram HITL Gate
+    participant H as Healer (Docker Socket)
+    participant A as buggy_service
+
+    Note over S,A: t+0s — Chaos injected, P99 > 2000ms for 2 minutes
+    S->>W: POST /webhook/signoz (alert payload)
+    W->>I: spawn background thread: process_alert()
+    Note over I: t+3s — Fetch 15-min ClickHouse log window
+    I->>S: GET /api/v1/query_range (ERROR spans)
+    S-->>I: Raw ClickHouse log context
+    Note over I: t+8s — Send trace context to Gemini
+    I->>I: gemini-1.5-flash via LiteLLM → JSON diagnosis
+    Note over T: t+12s — Halt pipeline, dispatch Telegram card
+    I->>T: send_telegram_alert(root_cause, proposed_fix)
+    T-->>I: Polling every 3s for YES (120s timeout)
+    Note over T: t+22s — Human replies YES
+    T->>H: authorize_remediation()
+    Note over H: t+24s — Mutate .env, restart via Docker socket
+    H->>A: container.restart() via /var/run/docker.sock
+    Note over A: t+26s — Container restarts, DB_POOL_SIZE=50
+    H->>T: 15s stabilization cooldown
+    Note over H: t+38s — Verify recovery, post proof card
+    H->>T: send_recovery_card(p99=840ms, mttr=38s)
+```
+
 ---
 
 ## Repository Layout
@@ -144,8 +185,17 @@ cd omnisre-signoz-hackathon
 ```
 
 ### 2. Configure Environment Variables
+
+Create a `.env` file in the project root:
+
+| Variable | Required | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `TELEGRAM_BOT_TOKEN` | ✅ | Token from [@BotFather](https://t.me/BotFather) | `123456:ABC-xyz...` |
+| `TELEGRAM_CHAT_ID` | ✅ | Your Telegram user or group ID | `987654321` |
+| `GEMINI_API_KEY` | ✅ | Google AI Studio key for Gemini inference | `AIzaSy...` |
+| `DB_POOL_SIZE` | ✅ | Initial connection pool size (agent scales this to 50) | `10` |
+
 ```bash
-# Create .env in the project root
 TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
 TELEGRAM_CHAT_ID="your_telegram_chat_id"
 GEMINI_API_KEY="your_gemini_api_key"
@@ -153,6 +203,9 @@ DB_POOL_SIZE=10
 ```
 
 ### 3. Deploy the SigNoz Observability Stack
+
+> **Why self-hosted SigNoz?** OmniSRE requires direct access to the ClickHouse backend via `/api/v1/query_range` to programmatically extract raw error spans. Managed cloud observability platforms do not expose this API. Self-hosting also eliminates data egress costs and gives the agent full query control with zero rate limiting.
+
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 foundryctl cast -f casting.yaml
@@ -220,6 +273,66 @@ The agent scales `DB_POOL_SIZE` to 50, restarts `buggy_service` via Docker socke
 
 ---
 
+## How the Gemini Inference Works
+
+This is the exact prompt sent to `gemini-1.5-flash` via LiteLLM during a live incident. Forcing a strict JSON schema eliminates ambiguous prose responses and makes the downstream healer fully deterministic.
+
+```python
+# agent/investigator.py — exact runtime prompt
+prompt = f"""
+You are an autonomous Site Reliability Engineer (OmniSRE).
+An alert has been triggered: {alert_payload}
+
+Context gathered from observability tools:
+{context}  # <-- Real ClickHouse ERROR span data injected here
+
+Determine the root cause and the required action.
+Respond with ONLY raw JSON, with no markdown formatting or backticks.
+It must contain:
+- "root_cause": string, your hypothesis
+- "action": string, either "RESTART_SERVICE", "SCALE_UP", or "NO_ACTION"
+- "target_service": string, the name of the service to act on
+"""
+```
+
+Example Gemini response during a real incident:
+
+```json
+{
+  "root_cause": "Sustained StatusCode.ERROR spans on /checkout over 15 minutes, consistent with DB_POOL_SIZE exhaustion under current traffic load.",
+  "action": "RESTART_SERVICE",
+  "target_service": "buggy_service"
+}
+```
+
+---
+
+## Human-in-the-Loop Guardrail
+
+The Telegram gate is the only thing standing between Gemini's diagnosis and your running infrastructure. The pipeline is hard-wired to halt at this point with no bypass:
+
+```
+SigNoz Alert fires
+       │
+       ▼
+ Gemini RCA complete
+       │
+       ▼
+┌─────────────────────────────┐
+│   TELEGRAM HITL GATE        │  ← Pipeline halts here
+│   Diagnostic card sent      │
+│   Polling for YES every 3s  │
+│   Timeout: 120 seconds      │
+└─────────────────────────────┘
+       │                  │
+    YES ▼              NO / Timeout ▼
+ Docker Heal          Abort. Log. Done.
+```
+
+Timestamp filtering (`msg_date >= alert_start_time - 5`) prevents stale approval messages from previous incidents triggering unintended restarts.
+
+---
+
 ## Telemetry Verification
 
 Every `/checkout` request in chaos mode is indexed as a named `StatusCode.ERROR` span in ClickHouse — giving the AI structured, auditable evidence.
@@ -259,6 +372,19 @@ current_span.set_attribute("http.status_code", 500)
 
 - **Development:** Google Gemini and GitHub Copilot were used for code refactoring, regex validation, and documentation layout.
 - **Runtime:** `gemini-1.5-flash` is natively integrated via LiteLLM for automated log triage, hypothesis generation, and root-cause analysis during live incidents.
+
+---
+
+## License
+
+This project is licensed under the **MIT License** — see the [LICENSE](./LICENSE) file for details. You are free to use, modify, and distribute this project with attribution.
+
+## Contributing
+
+Contributions, issues, and feature requests are welcome. If you deploy OmniSRE and hit a new networking edge case or extend the healing actions, open a PR — especially for:
+- New `action` types beyond `RESTART_SERVICE` and `SCALE_UP`
+- Kubernetes operator support
+- Additional alert channel integrations (PagerDuty, Opsgenie)
 
 ---
 
