@@ -2,7 +2,7 @@
 
 > Self-hosted SigNoz + OpenTelemetry + Google Gemini + Telegram HITL — an autonomous agent that detects incidents, diagnoses root causes, and restarts containers in **under 40 seconds**, without waking you up.
 
-![OmniSRE Banner](./assets/title.png)
+![OmniSRE Banner](./assets/cover.svg)
 
 **Track 01: AI & Agent Observability | WeMakeDevs x Agents of SigNoz Hackathon**
 
