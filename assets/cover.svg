@@ -1,0 +1,169 @@
+<svg width="1000" height="420" viewBox="0 0 1000 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0D1117"/>
+      <stop offset="60%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#130F22"/>
+    </linearGradient>
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1A2235"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="12" r="1" fill="#1E293B"/>
+    </pattern>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="18" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrowW" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+      <path d="M0,1 L0,6 L7,3.5 z" fill="#334155"/>
+    </marker>
+    <marker id="arrowG" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+      <path d="M0,1 L0,6 L7,3.5 z" fill="#22C55E"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="420" fill="url(#bg)"/>
+  <rect width="1000" height="420" fill="url(#dots)" opacity="0.5"/>
+
+  <!-- Ambient glows -->
+  <circle cx="900" cy="60" r="180" fill="#F46800" opacity="0.05" filter="url(#softGlow)"/>
+  <circle cx="120" cy="360" r="140" fill="#4285F4" opacity="0.06" filter="url(#softGlow)"/>
+
+  <!-- Left accent bar -->
+  <rect x="36" y="40" width="4" height="340" rx="2" fill="#F46800" opacity="0.9"/>
+
+  <!-- ─────────────── TITLE BLOCK ─────────────── -->
+  <text x="58" y="108" font-family="'Segoe UI',system-ui,-apple-system,sans-serif" font-size="78" font-weight="900" fill="white" letter-spacing="-3">Omni<tspan fill="#F46800" filter="url(#glow)">SRE</tspan></text>
+  <text x="60" y="140" font-family="'Segoe UI',system-ui,-apple-system,sans-serif" font-size="16" font-weight="400" fill="#64748B" letter-spacing="0.3">Autonomous AI SRE Agent · Closed-Loop Self-Healing</text>
+
+  <!-- Badge row -->
+  <!-- MTTR badge -->
+  <rect x="60" y="158" width="168" height="26" rx="13" fill="#15803D" opacity="0.25"/>
+  <rect x="60" y="158" width="168" height="26" rx="13" fill="none" stroke="#22C55E" stroke-width="1"/>
+  <circle cx="78" cy="171" r="4" fill="#22C55E"/>
+  <text x="88" y="176" font-family="'Segoe UI',system-ui,sans-serif" font-size="11" font-weight="700" fill="#22C55E">MTTR &lt; 40 SECONDS</text>
+
+  <!-- Hackathon badge -->
+  <rect x="240" y="158" width="226" height="26" rx="13" fill="#92400E" opacity="0.25"/>
+  <rect x="240" y="158" width="226" height="26" rx="13" fill="none" stroke="#F46800" stroke-width="1"/>
+  <text x="353" y="176" font-family="'Segoe UI',system-ui,sans-serif" font-size="11" font-weight="600" fill="#F46800" text-anchor="middle">WeMakeDevs × Agents of SigNoz</text>
+
+  <!-- ─────────────── PIPELINE ─────────────── -->
+  <text x="60" y="220" font-family="'Segoe UI',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#334155" letter-spacing="2.5">AUTONOMOUS REMEDIATION PIPELINE</text>
+
+  <!-- Box 1: SigNoz -->
+  <rect x="60" y="232" width="136" height="62" rx="8" fill="url(#cardBg)" stroke="#F46800" stroke-width="1.5"/>
+  <rect x="60" y="232" width="136" height="4" rx="2" fill="#F46800" opacity="0.5"/>
+  <text x="128" y="256" font-family="'Segoe UI',system-ui,sans-serif" font-size="13" font-weight="700" fill="#F46800" text-anchor="middle">SigNoz Alert</text>
+  <text x="128" y="272" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" fill="#94A3B8" text-anchor="middle">p99 &gt; 2000ms</text>
+  <text x="128" y="287" font-family="'Segoe UI',system-ui,sans-serif" font-size="9" fill="#475569" text-anchor="middle">Webhook fires</text>
+
+  <!-- Arrow -->
+  <line x1="196" y1="263" x2="218" y2="263" stroke="#334155" stroke-width="2" marker-end="url(#arrowW)"/>
+
+  <!-- Box 2: Gemini -->
+  <rect x="220" y="232" width="136" height="62" rx="8" fill="url(#cardBg)" stroke="#4285F4" stroke-width="1.5"/>
+  <rect x="220" y="232" width="136" height="4" rx="2" fill="#4285F4" opacity="0.5"/>
+  <text x="288" y="256" font-family="'Segoe UI',system-ui,sans-serif" font-size="13" font-weight="700" fill="#4285F4" text-anchor="middle">Gemini AI</text>
+  <text x="288" y="272" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" fill="#94A3B8" text-anchor="middle">Root-Cause Analysis</text>
+  <text x="288" y="287" font-family="'Segoe UI',system-ui,sans-serif" font-size="9" fill="#475569" text-anchor="middle">ClickHouse logs</text>
+
+  <!-- Arrow -->
+  <line x1="356" y1="263" x2="378" y2="263" stroke="#334155" stroke-width="2" marker-end="url(#arrowW)"/>
+
+  <!-- Box 3: Telegram -->
+  <rect x="380" y="232" width="136" height="62" rx="8" fill="url(#cardBg)" stroke="#0088CC" stroke-width="1.5"/>
+  <rect x="380" y="232" width="136" height="4" rx="2" fill="#0088CC" opacity="0.5"/>
+  <text x="448" y="256" font-family="'Segoe UI',system-ui,sans-serif" font-size="13" font-weight="700" fill="#29B6F6" text-anchor="middle">Telegram HITL</text>
+  <text x="448" y="272" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" fill="#94A3B8" text-anchor="middle">Human approves</text>
+  <text x="448" y="287" font-family="'Segoe UI',system-ui,sans-serif" font-size="9" fill="#475569" text-anchor="middle">Reply YES</text>
+
+  <!-- Arrow (green = success path) -->
+  <line x1="516" y1="263" x2="538" y2="263" stroke="#22C55E" stroke-width="2" marker-end="url(#arrowG)"/>
+
+  <!-- Box 4: Self-Heal -->
+  <rect x="540" y="232" width="136" height="62" rx="8" fill="url(#cardBg)" stroke="#22C55E" stroke-width="1.5"/>
+  <rect x="540" y="232" width="136" height="4" rx="2" fill="#22C55E" opacity="0.5"/>
+  <text x="608" y="256" font-family="'Segoe UI',system-ui,sans-serif" font-size="13" font-weight="700" fill="#22C55E" text-anchor="middle">Self-Heal</text>
+  <text x="608" y="272" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" fill="#94A3B8" text-anchor="middle">Docker restart</text>
+  <text x="608" y="287" font-family="'Segoe UI',system-ui,sans-serif" font-size="9" fill="#22C55E" text-anchor="middle">In &lt; 40 seconds</text>
+
+  <!-- ─────────────── METRICS PANEL ─────────────── -->
+  <rect x="698" y="40" width="272" height="340" rx="12" fill="#0A0F1A" stroke="#1E293B" stroke-width="1.5"/>
+  <rect x="698" y="40" width="272" height="4" rx="2" fill="#F46800" opacity="0.6"/>
+
+  <text x="834" y="68" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" font-weight="700" fill="#475569" text-anchor="middle" letter-spacing="2">LIVE METRICS</text>
+  <line x1="718" y1="78" x2="950" y2="78" stroke="#1E293B" stroke-width="1"/>
+
+  <!-- Metric: P99 Latency -->
+  <text x="718" y="102" font-family="'Segoe UI',system-ui,sans-serif" font-size="11" fill="#64748B">P99 Latency</text>
+  <text x="736" y="120" font-family="'Segoe UI',system-ui,sans-serif" font-size="9" fill="#EF4444">3,420 ms</text>
+  <text x="950" y="102" font-family="'Segoe UI',system-ui,sans-serif" font-size="14" font-weight="800" fill="#22C55E" text-anchor="end">840 ms</text>
+  <rect x="718" y="124" width="222" height="3" rx="1.5" fill="#1E293B"/>
+  <rect x="718" y="124" width="55" height="3" rx="1.5" fill="#22C55E"/>
+
+  <!-- Metric: HTTP 500 -->
+  <text x="718" y="150" font-family="'Segoe UI',system-ui,sans-serif" font-size="11" fill="#64748B">HTTP 500 Rate</text>
+  <text x="736" y="168" font-family="'Segoe UI',system-ui,sans-serif" font-size="9" fill="#EF4444">&gt; 40%</text>
+  <text x="950" y="150" font-family="'Segoe UI',system-ui,sans-serif" font-size="14" font-weight="800" fill="#22C55E" text-anchor="end">0%</text>
+  <rect x="718" y="172" width="222" height="3" rx="1.5" fill="#1E293B"/>
+  <rect x="718" y="172" width="2" height="3" rx="1.5" fill="#22C55E"/>
+
+  <!-- Metric: HTTP 200 -->
+  <text x="718" y="198" font-family="'Segoe UI',system-ui,sans-serif" font-size="11" fill="#64748B">HTTP 200 Rate</text>
+  <text x="736" y="216" font-family="'Segoe UI',system-ui,sans-serif" font-size="9" fill="#EF4444">&lt; 60%</text>
+  <text x="950" y="198" font-family="'Segoe UI',system-ui,sans-serif" font-size="14" font-weight="800" fill="#22C55E" text-anchor="end">100%</text>
+  <rect x="718" y="220" width="222" height="3" rx="1.5" fill="#1E293B"/>
+  <rect x="718" y="220" width="222" height="3" rx="1.5" fill="#22C55E"/>
+
+  <!-- Metric: MTTR -->
+  <text x="718" y="246" font-family="'Segoe UI',system-ui,sans-serif" font-size="11" fill="#64748B">MTTR</text>
+  <text x="736" y="264" font-family="'Segoe UI',system-ui,sans-serif" font-size="9" fill="#EF4444">15–45 min</text>
+  <text x="950" y="246" font-family="'Segoe UI',system-ui,sans-serif" font-size="14" font-weight="800" fill="#22C55E" text-anchor="end">&lt; 40 sec</text>
+  <rect x="718" y="268" width="222" height="3" rx="1.5" fill="#1E293B"/>
+  <rect x="718" y="268" width="12" height="3" rx="1.5" fill="#22C55E"/>
+
+  <!-- Divider -->
+  <line x1="718" y1="290" x2="950" y2="290" stroke="#1E293B" stroke-width="1"/>
+
+  <!-- Status -->
+  <circle cx="730" cy="316" r="6" fill="#22C55E" filter="url(#glow)"/>
+  <text x="746" y="321" font-family="'Segoe UI',system-ui,sans-serif" font-size="13" font-weight="700" fill="#22C55E">SYSTEM HEALED</text>
+  <text x="730" y="345" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" fill="#334155">No wake-up required</text>
+  <text x="730" y="362" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" fill="#334155">Zero human escalation</text>
+
+  <!-- ─────────────── TECH STACK ─────────────── -->
+  <text x="60" y="322" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" fill="#334155">Stack</text>
+
+  <rect x="100" y="308" width="72" height="22" rx="5" fill="#F46800" opacity="0.12"/>
+  <rect x="100" y="308" width="72" height="22" rx="5" fill="none" stroke="#F46800" stroke-width="0.75" opacity="0.6"/>
+  <text x="136" y="323" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" font-weight="600" fill="#F46800" text-anchor="middle">SigNoz</text>
+
+  <rect x="182" y="308" width="86" height="22" rx="5" fill="#4285F4" opacity="0.12"/>
+  <rect x="182" y="308" width="86" height="22" rx="5" fill="none" stroke="#4285F4" stroke-width="0.75" opacity="0.6"/>
+  <text x="225" y="323" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" font-weight="600" fill="#4285F4" text-anchor="middle">Gemini AI</text>
+
+  <rect x="278" y="308" width="82" height="22" rx="5" fill="#0088CC" opacity="0.12"/>
+  <rect x="278" y="308" width="82" height="22" rx="5" fill="none" stroke="#0088CC" stroke-width="0.75" opacity="0.6"/>
+  <text x="319" y="323" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" font-weight="600" fill="#29B6F6" text-anchor="middle">Telegram</text>
+
+  <rect x="370" y="308" width="118" height="22" rx="5" fill="#2496ED" opacity="0.12"/>
+  <rect x="370" y="308" width="118" height="22" rx="5" fill="none" stroke="#2496ED" stroke-width="0.75" opacity="0.6"/>
+  <text x="429" y="323" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" font-weight="600" fill="#38BDF8" text-anchor="middle">OpenTelemetry</text>
+
+  <rect x="498" y="308" width="68" height="22" rx="5" fill="#7C3AED" opacity="0.12"/>
+  <rect x="498" y="308" width="68" height="22" rx="5" fill="none" stroke="#7C3AED" stroke-width="0.75" opacity="0.6"/>
+  <text x="532" y="323" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" font-weight="600" fill="#A78BFA" text-anchor="middle">Docker</text>
+
+  <!-- ─────────────── FOOTER ─────────────── -->
+  <line x1="44" y1="356" x2="676" y2="356" stroke="#1E293B" stroke-width="1"/>
+  <text x="60" y="375" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" fill="#334155">github.com/rahulchandra2004/omnisre-signoz-hackathon</text>
+  <text x="60" y="394" font-family="'Segoe UI',system-ui,sans-serif" font-size="10" fill="#334155">Rahul Chandra Padamuttam · Track 01: AI &amp; Agent Observability</text>
+</svg>
