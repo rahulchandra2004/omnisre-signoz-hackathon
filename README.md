@@ -14,6 +14,10 @@
 
 **Watch the 3-Minute Live Demo:** [Click Here to Watch on YouTube](https://youtu.be/GMaUc4ksh6A)
 
+*Built on top of:*
+
+![SigNoz Logo](./assets/Signoz_logo.svg)
+
 ---
 
 ## Results at a Glance
